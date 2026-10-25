@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  CUSTOMER
+  KITCHEN
+  CASHIER
+  ADMIN
+}
+
+enum OrderStatus {
+  PLACED
+  CONFIRMED
+  PREPARING
+  READY
+  SERVED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+}
+
+model Cafe {
+  id              String              @id @default(cuid())
+  name            String
+  slug            String              @unique
+  currency        String              @default("INR")
+  orderSequence   Int                 @default(0)
+  createdAt       DateTime            @default(now())
+  users           User[]
+  categories      Category[]
+  products        Product[]
+  tables          CafeTable[]
+  orders          Order[]
+  inventoryItems  InventoryItem[]
+  inventoryEvents InventoryMovement[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  cafeId       String
+  cafe         Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  email        String
+  name         String
+  passwordHash String
+  role         Role
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  @@unique([cafeId, email])
+  @@index([cafeId, role])
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  cafeId    String
+  cafe      Cafe      @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  name      String
+  sortOrder Int       @default(0)
+  products  Product[]
+
+  @@unique([cafeId, name])
+  @@index([cafeId])
+}
+
+model Product {
+  id          String      @id @default(cuid())
+  cafeId      String
+  cafe        Cafe        @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  name        String
+  description String
+  priceCents  Int
+  imageUrl    String?
+  isAvailable Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  orderItems  OrderItem[]
+
+  @@unique([cafeId, id])
+  @@index([cafeId, categoryId, isAvailable])
+}
+
+model CafeTable {
+  id       String  @id @default(cuid())
+  cafeId   String
+  cafe     Cafe    @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  label    String
+  qrCodeId String  @unique @default(cuid())
+  isActive Boolean @default(true)
+  orders   Order[]
+
+  @@unique([cafeId, label])
+  @@index([cafeId])
+}
+
+model Order {
+  id                String        @id @default(cuid())
+  cafeId            String
+  cafe              Cafe          @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  tableId           String?
+  table             CafeTable?    @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  orderNumber       Int
+  customerName      String
+  customerPhone     String
+  status            OrderStatus   @default(PLACED)
+  paymentStatus     PaymentStatus @default(UNPAID)
+  totalCents        Int
+  trackingTokenHash String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  items             OrderItem[]
+
+  @@unique([cafeId, orderNumber])
+  @@index([cafeId, status, createdAt])
+}
+
+model OrderItem {
+  id             String   @id @default(cuid())
+  orderId        String
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String?
+  product        Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  nameSnapshot   String
+  unitPriceCents Int
+  quantity       Int
+  note           String?
+}
+
+model InventoryItem {
+  id        String   @id @default(cuid())
+  cafeId    String
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  Float
+  unit      String
+  updatedAt DateTime @updatedAt
+
+  @@unique([cafeId, name])
+  @@index([cafeId])
+}
+
+model InventoryMovement {
+  id        String   @id @default(cuid())
+  cafeId    String
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  itemName  String
+  delta     Float
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([cafeId, createdAt])
+}
